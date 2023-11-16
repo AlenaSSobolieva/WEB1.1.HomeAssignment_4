@@ -1,7 +1,5 @@
 import unittest
 import eventlet
-from flask import Flask
-from flask_socketio import SocketIOTestClient, SocketIO
 from main import app, socketio
 
 class TestApp(unittest.TestCase):
@@ -15,13 +13,12 @@ class TestApp(unittest.TestCase):
     def test_index(self):
         response = self.app.get('/')
         self.assertEqual(response.status_code, 200)
-        # Update the content assertion based on the new content
         self.assertIn(b'Python can be easy to pick up', response.data)
 
     def test_message_post(self):
         response = self.app.post('/message', data=dict(username='test_user', message='test_message'))
         self.assertEqual(response.status_code, 200)
-        # Add more assertions as needed
+
 
     def test_socket_connection(self):
         received_event = eventlet.Event()
