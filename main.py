@@ -34,18 +34,15 @@ def message():
         user_message = request.form['message']
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
+        # Prepare data to be sent over the socket
+        message_data = {"username": username, "message": user_message, "timestamp": timestamp}
+        serialized_data = json.dumps(message_data)
+
         # Send data to the socket server
-        message_data = {"username": username, "message": user_message}
-        socketio.emit('new_message', message_data)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
+            client_socket.sendto(serialized_data.encode(), ('127.0.0.1', 5000))
 
-        # Save data to data.json file
-        with open(data_file_path, 'r') as f:
-            data = json.load(f)
-        data[timestamp] = message_data
-        with open(data_file_path, 'w') as f:
-            json.dump(data, f)
-
-    return render_template('message.html')
+        return render_template('message.html')
 
 @app.errorhandler(404)
 def page_not_found(error):
@@ -56,16 +53,32 @@ def page_not_found(error):
 def handle_connect():
     print('Client connected')
 
+# Function to run the server socket
+def run_socket_server():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server_socket:
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(('127.0.0.1', 5000))
+        while True:
+            data, addr = server_socket.recvfrom(1024)
+            print(f'Received data from {addr}: {data.decode()}')
+
+            # Load received data
+            message_data = json.loads(data.decode())
+
+            # Save data to data.json file
+            if not os.path.exists(data_file_path):
+                with open(data_file_path, 'w') as f:
+                    json.dump({}, f)
+            with open(data_file_path, 'r') as f:
+                stored_data = json.load(f)
+            stored_data[message_data['timestamp']] = message_data
+            with open(data_file_path, 'w') as f:
+                json.dump(stored_data, f)
+
+
 if __name__ == '__main__':
     def run_flask():
         socketio.run(app, port=3000, debug=True, use_reloader=False)
-
-    def run_socket_server():
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server_socket:
-            server_socket.bind(('127.0.0.1', 5000))
-            while True:
-                data, addr = server_socket.recvfrom(1024)
-                print(f'Received data from {addr}: {data.decode()}')
 
     flask_thread = Thread(target=run_flask)
     socket_thread = Thread(target=run_socket_server)
